@@ -6,11 +6,16 @@
 
 using namespace std;
 
-const int MAX_EXPRESSION_SIZE = 65, LETTER_OFFSET_IN_ASCII = 32;
+const int MAX_EXPRESSION_SIZE = 65, LETTER_OFFSET_IN_ASCII = 32,
+			BORDER_LENGTH = (MAX_EXPRESSION_SIZE + 1) * 2;
 
 enum Menu {
 	PRINT_TO_FILE_AND_SCREEN = 1, QUIT = 2
 };
+
+class EmptyStack {};
+
+class FullStack {};
 
 class Stack {
 	public:
@@ -24,11 +29,9 @@ class Stack {
 
 		void Push(char);
 
-		char Top() const;
+		char Peek() const;
 
 		void Pop();
-
-		int GetStackSize() const { return stackTop; }
 
 		string ToString();
 	private:
@@ -36,19 +39,16 @@ class Stack {
 		int stackTop;
 };
 
-void ClearInvalidInput(string errMsg);
+void ClearInvalidInput(string errMsg); //clears cin, clears the keyboard buffer, prints an error message
 
-void PrintToFileAndScreen(string inFileName, string outFileName, string border, string header);
+//prints the stack in reverse order to the file and screen
+void PrintToFileAndScreen(string inFileName, string outFileName, string border, string header); 
 
-//void PrintToFile(ofstream& outFil, string original, string reversed);
+string ProcessString(string); //removes all non alpha characters and apostrophes
 
-//void PrintToScreen(string original, string reversed);
+string ToLower(string); //converts string to lowercase
 
-string ProcessString(string);
-
-string ToLower(string);
-
-void CreateStringStack(Stack&, string);
+void PopulateStack(Stack&, string); // creates a stack filled with the processed string
 
 int main() {
 	int userChoice;
@@ -56,7 +56,7 @@ int main() {
 		border, header;
 	stringstream headerSS, borderSS;
 
-	borderSS << setfill('-') << setw((MAX_EXPRESSION_SIZE + 1) * 2) << "\n";
+	borderSS << setfill('-') << setw(BORDER_LENGTH) << "\n";
 	headerSS << left << setw(MAX_EXPRESSION_SIZE + 1) << "INPUT" << setw(MAX_EXPRESSION_SIZE + 1) << "REVERSED";
 
 	border = borderSS.str();
@@ -72,7 +72,15 @@ int main() {
 
 		switch (userChoice) {
 		case PRINT_TO_FILE_AND_SCREEN:
-			PrintToFileAndScreen(inFileName, outFileName, border, header);
+			try {
+				PrintToFileAndScreen(inFileName, outFileName, border, header);
+			}
+			catch (const EmptyStack&) {
+				cout << "Exception caught: Unable to pop or peek from an empty stack.\n";
+			}
+			catch (const FullStack&) {
+				cout << "Exception caught: Unable to push onto a full stack.\n";
+			}
 		break;
 		case QUIT:
 			cout << "QUITTING ..." << endl;
@@ -89,13 +97,12 @@ string Stack::ToString() {
 	stringstream ss;
 	int size = stackTop;
 	for (int i = 0; i < size; i++) {
-		ss << Top();
+		ss << Peek();
 		Pop();
 	}
 	ss << setw(MAX_EXPRESSION_SIZE);
 	return ss.str();
 }
-
 
 void Stack::Push(char newChar) {
 	if (!IsFullStack()) {
@@ -103,13 +110,16 @@ void Stack::Push(char newChar) {
 		stackTop++;
 	}
 	else {
-		cout << "Push Failed, Stack is full\n";
+		throw FullStack();
 	}
 }
 
-char Stack::Top() const {
+char Stack::Peek() const {
 	if (!IsEmpty()) {
 		return expression[stackTop - 1];
+	}
+	else {
+		throw EmptyStack();
 	}
 }
 
@@ -118,7 +128,7 @@ void Stack::Pop() {
 		stackTop--;
 	}
 	else {
-		cout << "Cannot pop from an empty stack\n";
+		throw EmptyStack();
 	}
 }
 
@@ -147,14 +157,13 @@ void PrintToFileAndScreen(string inputFileName, string outputFileName, string bo
 	}
 
 	outFile << left << header << "\n";
-	cout << border << header << "\n";
+	cout << "\n" << header << "\n" << border;
 
 	while (!inputFile.eof()) {
 		getline(inputFile, tempString);
 		if (tempString.length() <= MAX_EXPRESSION_SIZE) {
-			CreateStringStack(tempStack, tempString);
+			PopulateStack(tempStack, tempString);
 			reversedString = tempStack.ToString();
-
 			//prints to file
 			outFile << setw(MAX_EXPRESSION_SIZE + 1) << tempString
 				<< setw(MAX_EXPRESSION_SIZE) << reversedString << "\n";
@@ -165,24 +174,13 @@ void PrintToFileAndScreen(string inputFileName, string outputFileName, string bo
 		}
 
 	}
+	
 	cout << border;
 	inputFile.close();
 	outFile.close();
 }
 
-//void PrintToFile(ofstream& outFile, string expression, string reversedExpression) {
-//
-//	outFile << setw(MAX_EXPRESSION_SIZE) << expression
-//		<< setw(MAX_EXPRESSION_SIZE) << reversedExpression << "\n";
-//
-//}
-
-//void PrintToScreen(string original, string reversed) {
-//	cout << setw(MAX_EXPRESSION_SIZE) << original
-//		<< setw(MAX_EXPRESSION_SIZE) << reversed << "\n";
-//}
-
-void CreateStringStack(Stack& stack, string expression) {
+void PopulateStack(Stack& stack, string expression) {
 	expression = ToLower(expression);
 	expression = ProcessString(expression);
 
@@ -220,3 +218,81 @@ string ToLower(string str) {
 	}
 	return lowerCaseStr;
 }
+
+
+//TEST 1 (print to screen)
+/*
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+1
+
+INPUT                                                             REVERSED
+-----------------------------------------------------------------------------------------------------------------------------------
+YES!!! you can dance!                                             ecnadnacuoysey
+Hello, I'm Abbas                                                  sabbaiolleh
+z y x w v u t s r q p o n m l k j i h g f e d c b a               abcdefghijklmnopqrstuvwxyz
+!!!!!!!!!!!!!!!!!!!!!A!!!!!!!!!!!!!!!!!!!!!!!                     a
+This expression is exactly 65 characters long and should print___ tnirpdluohsdnagnolsretcarahcyltcaxesinoisserpxesiht
+ Matching cover pAGE, header, and sidebar.                        rabedisdnaredaehegaprevocgnihctam
+I love to Code!!!!                                                edocotevoli
+CS 136 is really fun                                              nufyllaersisc
+D.S. Malik - C++ Programming                                      gnimmargorpckilamsd
+-----------------------------------------------------------------------------------------------------------------------------------
+
+
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+2
+QUITTING ...
+
+*/
+
+//TEST 2 (inut file is empty)
+/*
+
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+1
+The input file is empty. Quitting the program.
+Press any key to continue . . .
+*/
+
+//TEST 3 (intput file not found)
+/*
+
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+1
+Input file not found. Exiting the program.
+Press any key to continue . . .
+*/
+
+//TEST 4 (invalid input from user)
+/*
+
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+dksfkl
+
+INVALID INPUT
+
+
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+3
+
+INVALID INPUT
+
+
+Menu:
+1. Print expressions to a file and screen
+2. Quit
+2
+QUITTING ...
+*/
